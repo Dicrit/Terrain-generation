@@ -2,6 +2,7 @@
 using System.Collections.Generic;
 using UnityEngine.UI;
 using System;
+using System.Diagnostics;
 using System.Threading;
 
 public class W_TerrainGen : MonoBehaviour
@@ -9,8 +10,8 @@ public class W_TerrainGen : MonoBehaviour
     [SerializeField]
     public string seedstr;
     private List<Seed> seed = new List<Seed>();
-
-
+    private int width = 2048;
+    private Stopwatch watch, watch1;
 
     private class Seed
     {
@@ -29,15 +30,14 @@ public class W_TerrainGen : MonoBehaviour
     }
 
 
-
     //calculating color array
-    private Color32[] getColorMap(int resolution, int width, int height) {
-        Color32[] cols = new Color32[width * height];
+    private Color32[] getColorMap(int resolution) {
+        Color32[] cols = new Color32[width * width];
         for (int i = 0; i < resolution; i++)
         {
             for (int k = 0; k < resolution; k++)
             {
-                float f = getPointHeight2(i,k);
+                float f = getPointHeight1(i,k);
                 cols[resolution * i + k] = new Color(f, f, f);
             }
         }
@@ -85,7 +85,7 @@ public class W_TerrainGen : MonoBehaviour
 
     private void InitializeSeed(string seedstr)
     {
-        if (seedstr == "" || seedstr.Length % 6 != 0) { seedstr = "101111011111"; Debug.LogWarning("seed is uncorrect. Using default seed"); }
+        if (seedstr == "" || seedstr.Length % 6 != 0) { seedstr = "101111011111"; UnityEngine.Debug.LogWarning("seed is uncorrect. Using default seed"); }
         for (int j = 0; j < seedstr.Length; j += 6)
         {
             try
@@ -98,27 +98,55 @@ public class W_TerrainGen : MonoBehaviour
             }
             catch
             {
-                Debug.LogWarning("seed is uncorrect. Using default seed");
+                UnityEngine.Debug.LogWarning("seed is uncorrect. Using default seed");
                 seed = new List<Seed>();
                 InitializeSeed("101111011111");
             }
         }
     }
-    void Start()
+    void Update()
     {
-        InitializeSeed(seedstr);
-        setUpTerrain(2048,2048);
-        
+        if (Input.GetKeyDown(KeyCode.F))
+        {
+            Build();
+        }
     }
-    void setUpTerrain(int width, int height)
+    void Build()
+    {
+        watch = new Stopwatch();
+        watch1 = new Stopwatch();
+        watch.Reset();
+        watch.Start();
+        watch1.Reset();
+        watch1.Start();
+        InitializeSeed(seedstr);
+        print("Seed creating time: " + watch1.ElapsedMilliseconds);
+        setUpTerrain();
+        print("Total time: " + watch.ElapsedMilliseconds);
+    }
+    Texture2D textureFromColorMap(Color32[] cols)
+    {
+        Texture2D texture = new Texture2D(width, width);
+        texture.SetPixels32(cols);
+        texture.Apply();
+        return texture;
+    }
+    void setUpTerrain()
     {
         int resolution = width;
 
-        Texture2D texture = new Texture2D(width, height);
-        Color32[] cols = getColorMap(resolution,width,height);
-        texture.SetPixels32(cols);
-        texture.Apply();
+        watch1.Reset();
+        watch1.Start();
+        Color32[] cols = getColorMap(resolution);
+        print("generating color array time: " + watch1.ElapsedMilliseconds);
 
+        watch1.Reset();
+        watch1.Start();
+        Texture2D texture = textureFromColorMap(cols);
+        print("Generating texture time: " + watch1.ElapsedMilliseconds);
+
+        watch1.Reset();
+        watch1.Start();
         float[,] heights = new float[resolution, resolution];
         for (int i = 0; i < resolution; i++)
         {
@@ -127,10 +155,13 @@ public class W_TerrainGen : MonoBehaviour
                 heights[i, k] = texture.GetPixel(i, k).grayscale * 0.03f;
             }
         }
-
+        print("Generating heights array time: " + watch1.ElapsedMilliseconds);
+        watch1.Reset();
+        watch1.Start();
         Terrain terrain = FindObjectOfType<Terrain>();
-        terrain.terrainData.size = new Vector3(width, width, height);
+        terrain.terrainData.size = new Vector3(width, width, width);
         terrain.terrainData.heightmapResolution = resolution;
         terrain.terrainData.SetHeights(0, 0, heights);
+        print("Terrain Applying time: "+watch1.ElapsedMilliseconds);
     }
 }
